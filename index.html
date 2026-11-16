@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Reading Buddy</title>
+<style>
+  :root{
+    --bg:#fff8ec; --card:#ffffff; --ink:#2b2b3a; --soft:#8a8aa0;
+    --accent:#ff7a59; --accent2:#3fa7d6; --good:#59c38a; --hl:#ffe08a;
+    --radius:22px;
+    --font:"Andika","Andika New Basic","Century Gothic","Comic Sans MS","Chalkboard SE","Trebuchet MS",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font)}
+  body{display:flex;flex-direction:column;min-height:100vh}
+  button{font-family:inherit;cursor:pointer}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px}
+  header h1{margin:0;font-size:1.5rem;letter-spacing:.5px}
+  header h1 span{color:var(--accent)}
+  .grownup-btn{background:#fff;border:2px solid #e8dcc6;border-radius:999px;padding:8px 16px;font-size:1rem;color:var(--ink)}
+  .grownup-btn:hover{border-color:var(--accent2)}
+
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 16px 30px;gap:18px}
+  .meta{color:var(--soft);font-size:1rem;text-align:center}
+  .meta b{color:var(--accent2);font-weight:600}
+
+  .stage{display:flex;align-items:center;gap:14px;width:100%;max-width:1100px}
+  .arrow{flex:none;width:64px;height:64px;border-radius:50%;border:none;background:#fff;box-shadow:0 4px 0 #e8dcc6;font-size:2rem;color:var(--accent2)}
+  .arrow:active{transform:translateY(3px);box-shadow:0 1px 0 #e8dcc6}
+  .card{flex:1;background:var(--card);border-radius:var(--radius);box-shadow:0 8px 0 #efe3cc;padding:48px 28px;min-height:220px;
+        display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 26px}
+
+  .word{position:relative;display:inline-flex;align-items:baseline;font-size:clamp(2.6rem,7.5vw,5.2rem);line-height:1.15;
+        padding:6px 12px;border-radius:16px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+        touch-action:manipulation;cursor:pointer;font-weight:400;transition:background .15s}
+  .word .hold-bar{position:absolute;left:10px;right:10px;bottom:2px;height:6px;border-radius:3px;background:var(--accent2);
+        transform:scaleX(0);transform-origin:left;opacity:0;transition-property:none}
+  .word.holding .hold-bar{opacity:.55;transform:scaleX(1);transition-property:transform;transition-timing-function:linear}
+  .word.speaking{background:var(--hl)}
+  .word.speaking .ltr > span{font-weight:800}
+  .punct{color:var(--ink)}
+
+  /* bold without the word jumping in width */
+  .ltr{display:inline-grid}
+  .ltr > span, .ltr::after{grid-area:1/1}
+  .ltr::after{content:attr(data-c);font-weight:800;visibility:hidden;height:0;overflow:hidden}
+  .ltr.on > span{font-weight:800}
+  .ltr.cur > span{color:var(--accent)}
+
+  .controls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .pill{border:none;border-radius:999px;padding:12px 22px;font-size:1.1rem;background:#fff;box-shadow:0 4px 0 #e8dcc6;color:var(--ink)}
+  .pill:active{transform:translateY(3px);box-shadow:0 1px 0 #e8dcc6}
+  .pill.primary{background:var(--accent);color:#fff;box-shadow:0 4px 0 #d85f40}
+  .hint{color:var(--soft);font-size:1rem;text-align:center;max-width:600px}
+  .hint kbd{font-family:inherit;background:#fff;border:1px solid #e8dcc6;border-radius:6px;padding:1px 7px}
+  .warn{background:#ffe1d6;color:#8a2e12;border-radius:12px;padding:10px 16px;display:none}
+
+  /* grown-up drawer */
+  .scrim{position:fixed;inset:0;background:rgba(30,30,50,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:10}
+  .scrim.open{opacity:1;pointer-events:auto}
+  aside{position:fixed;top:0;right:0;height:100%;width:min(460px,100%);background:#fff;z-index:11;transform:translateX(100%);
+        transition:transform .25s;display:flex;flex-direction:column;box-shadow:-6px 0 24px rgba(0,0,0,.08)}
+  aside.open{transform:none}
+  .drawer-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #f0e8da}
+  .drawer-head h2{margin:0;font-size:1.25rem}
+  .x{border:none;background:none;font-size:1.8rem;line-height:1;color:var(--soft)}
+  .tabs{display:flex;gap:4px;padding:10px 14px 0}
+  .tab{flex:1;border:none;background:#f6efe2;border-radius:12px 12px 0 0;padding:10px;font-size:.95rem;color:var(--soft)}
+  .tab.active{background:#fff8ec;color:var(--ink);font-weight:700}
+  .panel{display:none;flex:1;overflow:auto;padding:14px 18px 24px;background:#fff8ec}
+  .panel.active{display:block}
+  label{display:block;font-size:.9rem;color:var(--soft);margin:10px 0 6px}
+  select,textarea,input[type=text]{width:100%;font-family:inherit;font-size:1rem;border:2px solid #e8dcc6;border-radius:12px;padding:10px;background:#fff;color:var(--ink)}
+  textarea{min-height:110px;resize:vertical}
+  .list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .list li{display:flex;align-items:center;gap:8px;background:#fff;border-radius:12px;padding:10px 12px;border:2px solid transparent;cursor:pointer}
+  .list li:hover{border-color:#e8dcc6}
+  .list li.sel{border-color:var(--accent2)}
+  .list li .num{color:var(--soft);font-size:.8rem;width:28px;flex:none}
+  .list li .txt{flex:1;font-size:1.05rem}
+  .list li .tag{font-size:.72rem;color:var(--soft);background:#f6efe2;border-radius:8px;padding:2px 7px;white-space:nowrap}
+  .list li .del{border:none;background:none;color:#c55;font-size:1.1rem}
+  .group-h{margin:16px 0 4px;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+  .row{display:flex;gap:10px;align-items:center}
+  .small{font-size:.85rem;color:var(--soft)}
+  .ok{color:var(--good);font-size:.9rem;min-height:1.2em;margin-top:6px}
+  .radio{display:flex;gap:8px;flex-wrap:wrap}
+  .radio label{margin:0;display:flex;align-items:center;gap:6px;background:#fff;border:2px solid #e8dcc6;border-radius:12px;padding:8px 12px;color:var(--ink);cursor:pointer}
+  .radio input{accent-color:var(--accent2)}
+  .check{display:flex;gap:8px;align-items:flex-start;color:var(--ink);font-size:1rem;margin-top:14px}
+  .check input{margin-top:4px;accent-color:var(--accent2)}
+  input[type=range]{width:100%;accent-color:var(--accent2)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Reading <span>Buddy</span></h1>
+  <button class="grownup-btn" id="openDrawer">Grown-ups ⚙︎</button>
+</header>
+
+<main>
+  <div class="warn" id="noSpeech">This browser can't speak out loud. Try Chrome, Edge, or Safari.</div>
+  <div class="meta" id="meta"></div>
+  <div class="stage">
+    <button class="arrow" id="prev" aria-label="Previous sentence">‹</button>
+    <div class="card" id="card" aria-live="polite"></div>
+    <button class="arrow" id="next" aria-label="Next sentence">›</button>
+  </div>
+  <div class="controls">
+    <button class="pill primary" id="readAll">🔊 Read the sentence</button>
+    <button class="pill" id="resetWords">↺ Start over</button>
+  </div>
+  <div class="hint"><div><kbd>Tap</kbd> a word to hear one letter at a time.</div><div style="margin-top:8px"><kbd>Hold</kbd> a word to hear the whole word.</div></div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside id="drawer" aria-label="Grown-up settings">
+  <div class="drawer-head"><h2>For grown-ups</h2><button class="x" id="closeDrawer" aria-label="Close">×</button></div>
+  <div class="tabs">
+    <button class="tab active" data-tab="choose">Choose</button>
+    <button class="tab" data-tab="add">Add sentences</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <section class="panel active" id="panel-choose">
+    <label for="filter">Sound pattern</label>
+    <select id="filter"></select>
+    <ul class="list" id="sentenceList"></ul>
+  </section>
+
+  <section class="panel" id="panel-add">
+    <label for="newText">Type one sentence per line</label>
+    <textarea id="newText" placeholder="The pup can dig.&#10;A frog sat on a log."></textarea>
+    <label for="newCat">Group (optional)</label>
+    <input type="text" id="newCat" placeholder="My Sentences">
+    <div class="row" style="margin-top:12px">
+      <button class="pill primary" id="addBtn">Add</button>
+      <span class="ok" id="addMsg"></span>
+    </div>
+    <div class="group-h" style="margin-top:24px">Your sentences</div>
+    <p class="small" id="noCustom">None yet. Sentences you add are saved in this browser on this device.</p>
+    <ul class="list" id="customList"></ul>
+  </section>
+
+  <section class="panel" id="panel-settings">
+    <label>When a letter is tapped, say its…</label>
+    <div class="radio">
+      <label><input type="radio" name="lmode" value="name" checked> Name (“ess”, “tee”)</label>
+      <label><input type="radio" name="lmode" value="sound"> Sound (“suh”, “tuh”)</label>
+    </div>
+    <label class="check"><input type="checkbox" id="teams">
+      <span>Keep letter teams together<br><span class="small">“sh”, “ch”, “th”, “ck”, “ee”, “ai”, “oa”, “ar”… are tapped and said as one sound.</span></span></label>
+    <label for="rate" style="margin-top:18px">Speaking speed <span id="rateVal"></span></label>
+    <input type="range" id="rate" min="0.5" max="1.2" step="0.05" value="0.8">
+    <label for="voice">Voice</label>
+    <select id="voice"></select>
+    <label for="holdMs">Hold time for whole word <span id="holdVal"></span></label>
+    <input type="range" id="holdMs" min="500" max="2000" step="100" value="1000">
+    <div style="margin-top:20px"><button class="pill" id="testVoice">🔊 Test voice</button></div>
+  </section>
+</aside>
+
+<script>
+/* ---------------- Sentences (100) ---------------- */
+const BUILT_IN = {
+  "Short a": [
+    "The cat sat on the hat.",
+    "The cat and rat got fat.",
+    "Sam has a tan bag.",
+    "Pam ran to the van.",
+    "The fat cat had a nap.",
+    "A bat sat on a mat."
+  ],
+  "Short e": [
+    "Ten men fed the hen.",
+    "The red hen is in a pen.",
+    "Meg let the pet get wet.",
+    "Ben has a red jet.",
+    "Get the net, Ken."
+  ],
+  "Short i": [
+    "The pig did a big dig.",
+    "Kim hid in the pit.",
+    "Liz will win the big pin.",
+    "The kid bit a fig.",
+    "Is it his wig?"
+  ],
+  "Short o": [
+    "The dog got hot.",
+    "Tom has a mop and a pot.",
+    "Bob sat on a log.",
+    "A fox is in the box.",
+    "Rob had a hot dog."
+  ],
+  "Short u": [
+    "The bug is in the mud.",
+    "A pup ran to the sun.",
+    "Gus had fun in the tub.",
+    "Cut the bun, Bud.",
+    "Run, pup, run!"
+  ],
+  "Mixed short vowels": [
+    "The big red bus is hot.",
+    "Pat the dog and hug the pup.",
+    "Ted and Pam hid in a hut."
+  ],
+  "ck": [
+    "The duck is stuck in the muck.",
+    "Jack has a black sack.",
+    "Rick can kick the rock.",
+    "Pick up the sock, Nick."
+  ],
+  "sh": [
+    "The fish is in the dish.",
+    "Shut the shed, Josh.",
+    "She has a shell.",
+    "Rush to the ship."
+  ],
+  "ch": [
+    "Chad can chop the chips.",
+    "The chick is on the bench.",
+    "Much fun at lunch.",
+    "Check the chest."
+  ],
+  "th": [
+    "This is the bath.",
+    "Beth and Seth sat with them.",
+    "That is a thick moth."
+  ],
+  "ng / nk": [
+    "The king can sing a song.",
+    "I think the sink is pink.",
+    "The skunk sat on the trunk.",
+    "Bring the long string."
+  ],
+  "l-blends": [
+    "Glen has a flag.",
+    "The black slug is on the plum.",
+    "The plug is in the slot.",
+    "Clap and flip on the sled."
+  ],
+  "r-blends": [
+    "The frog can trap a bug.",
+    "Brad has a red drum.",
+    "Fred grabs the crab.",
+    "Trot to the brick hut."
+  ],
+  "s-blends": [
+    "Stop the sled at the step.",
+    "Stan can spin on the spot.",
+    "A snack is on the stump."
+  ],
+  "Ending blends": [
+    "The ant went to the tent.",
+    "Jump in the pond.",
+    "The milk is on the desk.",
+    "The hand is on the lamp."
+  ],
+  "Silent e (a_e)": [
+    "Jake ate a cake.",
+    "Dave gave the cape to Jane.",
+    "The snake is in the lake.",
+    "Take the rake to the gate."
+  ],
+  "Silent e (i_e)": [
+    "Mike has a kite.",
+    "Hide the dime in the pipe.",
+    "I like to ride my bike."
+  ],
+  "Silent e (o_e, u_e)": [
+    "The mole is in the hole.",
+    "Rose has a rope.",
+    "The bone is by the stone.",
+    "The mule is cute.",
+    "June hums a tune."
+  ],
+  "ee / ea": [
+    "I see a bee in the tree.",
+    "Feed the sheep.",
+    "Eat a peach on the beach."
+  ],
+  "ai / ay": [
+    "The mail is in the pail.",
+    "Ray can wait for the train.",
+    "We play in the hay."
+  ],
+  "oa / ow": [
+    "The goat is in the boat.",
+    "Joan ate toast and oats.",
+    "Snow is on the road.",
+    "The crow can see the toad."
+  ],
+  "oo": [
+    "Look at the moon.",
+    "The cook took a book.",
+    "The goose is in the pool."
+  ],
+  "r-controlled (ar, or, er, ir, ur)": [
+    "The car is in the barn.",
+    "A star is far.",
+    "Get the corn for the horse.",
+    "The girl saw a bird.",
+    "The nurse has a purse."
+  ],
+  "ll / ss / ff": [
+    "The doll fell off the hill.",
+    "Bill will sell the bell.",
+    "Jeff will huff and puff.",
+    "Pass the glass to Jess."
+  ],
+  "y at the end": [
+    "Why did the fly cry?",
+    "The puppy is happy.",
+    "My bunny is funny."
+  ]
+};
+
+/* ---------------- Storage helpers ---------------- */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("rb_"+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem("rb_"+k, JSON.stringify(v)); }catch(e){} }
+};
+
+let custom = store.get("custom", []);           // [{text, cat}]
+let settings = Object.assign({lmode:"name", teams:false, rate:0.8, voice:"", holdMs:1000}, store.get("settings2", {}));
+
+function allSentences(){
+  const out = [];
+  for (const [cat, arr] of Object.entries(BUILT_IN)) arr.forEach(t => out.push({text:t, cat, custom:false}));
+  custom.forEach((c,i) => out.push({text:c.text, cat:c.cat || "My Sentences", custom:true, ci:i}));
+  return out;
+}
+let sentences = allSentences();
+let filterCat = store.get("filter", "All");
+let current = Math.min(store.get("current", 0), sentences.length-1);
+
+function visible(){ return filterCat==="All" ? sentences.map((s,i)=>i) : sentences.map((s,i)=>s.cat===filterCat?i:-1).filter(i=>i>=0); }
+
+/* ---------------- Speech ---------------- */
+const synth = window.speechSynthesis;
+let voices = [];
+let speakToken = 0;
+if (!synth) document.getElementById("noSpeech").style.display = "block";
+
+function loadVoices(){
+  if (!synth) return;
+  voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
+  const sel = document.getElementById("voice");
+  sel.innerHTML = '<option value="">Default</option>' + voices.map(v=>`<option value="${v.name}">${v.name} (${v.lang})</option>`).join("");
+  sel.value = settings.voice;
+}
+if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+
+function speak(text, onEnd){
+  const myToken = ++speakToken;
+  let done = false;
+  const finish = () => { if (done) return; done = true; clearTimeout(fallback); onEnd && onEnd(); };
+  // safety net in case the browser never fires onend
+  const fallback = setTimeout(finish, 900 + text.length * 120 / settings.rate);
+  if (!synth){ return; }
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = settings.rate; u.lang = "en-US";
+  const v = voices.find(v => v.name === settings.voice); if (v) u.voice = v;
+  u.onend = finish; u.onerror = finish; window.__rbUtterance = u;
+  // small delay avoids a Chrome bug where speak() right after cancel() is dropped
+  setTimeout(() => { if (myToken === speakToken) synth.speak(u); else finish(); }, 30);
+  return finish;
+}
+
+/* ---------------- Letter sounds ---------------- */
+const SOUNDS = {
+  a:"aa", b:"buh", c:"kuh", d:"duh", e:"eh", f:"fuh", g:"guh", h:"huh", i:"ih", j:"juh", k:"kuh",
+  l:"luh", m:"muh", n:"nuh", o:"ah", p:"puh", q:"kwuh", r:"ruh", s:"suh", t:"tuh", u:"uh", v:"vuh",
+  w:"wuh", x:"ks", y:"yuh", z:"zuh"
+};
+const LONG = { a:"A.", e:"ee", i:"eye", o:"oh", u:"you" };
+const NAMES = { a:"A.", b:"bee", c:"see", d:"dee", e:"ee", f:"eff", g:"jee", h:"aitch", i:"eye", j:"jay", k:"kay",
+  l:"el", m:"em", n:"en", o:"oh", p:"pee", q:"cue", r:"ar", s:"ess", t:"tee", u:"you", v:"vee", w:"double you",
+  x:"ex", y:"why", z:"zee" };
+const TEAMS = { // longest first when matching
+  tch:"ch", sh:"sh", ch:"ch", th:"th", wh:"wuh", ck:"kuh", ng:"ng", nk:"nk", qu:"kwuh",
+  ee:"ee", ea:"ee", ai:"A.", ay:"A.", oa:"oh", ow:"oh", oo:"oo",
+  ar:"ar", or:"or", er:"er", ir:"er", ur:"er", ll:"luh", ss:"suh", ff:"fuh"
+};
+const VOW = "aeiou";
+
+function splitUnits(word){
+  const w = word.toLowerCase(); const units = [];
+  let i = 0;
+  while (i < w.length){
+    let len = 1;
+    if (settings.teams){
+      for (const L of [3,2]){ if (TEAMS[w.substr(i,L)] && i+L<=w.length){ len = L; break; } }
+    }
+    units.push({start:i, len});
+    i += len;
+  }
+  return units;
+}
+
+function silentE(w){ // vowel ... consonant + final e  (cake, horse, ate) but not "the", "she", "be"
+  if (w.length < 3 || w[w.length-1] !== "e") return false;
+  const before = w[w.length-2]; if (VOW.includes(before)) return false;
+  return /[aeiou]/.test(w.slice(0, w.length-2));
+}
+
+function unitSpeech(word, unit){
+  const w = word.toLowerCase(); const piece = w.substr(unit.start, unit.len);
+  if (settings.lmode === "name") return piece.split("").map(c => NAMES[c] || c).join(", ");
+  if (unit.len > 1) return TEAMS[piece] || piece;
+  const c = piece;
+  const se = silentE(w);
+  if (se && unit.start === w.length-1) return "silent e";
+  if (se && VOW.includes(c)){ // the vowel before the consonant + e is long: cake, kite, bone
+    const lastV = w.slice(0, w.length-2).search(/[aeiou][^aeiou]*$/);
+    if (unit.start === lastV) return LONG[c];
+  }
+  if (c === "y" && unit.start === w.length-1 && w.length > 1){
+    return w.length <= 3 ? "eye" : "ee"; // my, fly, cry vs puppy, bunny
+  }
+  return SOUNDS[c] || c;
+}
+
+/* ---------------- Rendering ---------------- */
+const card = document.getElementById("card");
+let wordStates = [];
+
+function render(){
+  sentences = allSentences();
+  const vis = visible();
+  if (!vis.includes(current)) current = vis[0] ?? 0;
+  const s = sentences[current];
+  card.innerHTML = ""; wordStates = [];
+  if (!s){ card.textContent = "No sentences yet."; return; }
+  const pos = vis.indexOf(current) + 1;
+  document.getElementById("meta").innerHTML = `<b>${escapeHtml(s.cat)}</b> · ${pos} of ${vis.length}`;
+  s.text.trim().split(/\s+/).forEach(tok => {
+    const m = tok.match(/^([^A-Za-z']*)([A-Za-z']+)([^A-Za-z']*)$/);
+    const el = document.createElement("span"); el.className = "word";
+    if (!m){ el.textContent = tok; card.appendChild(el); return; }
+    const [, pre, core, post] = m;
+    const letters = core.replace(/'/g, "");
+    if (pre) el.appendChild(punct(pre));
+    const spans = [];
+    for (const ch of core){
+      if (ch === "'"){ el.appendChild(punct("'")); continue; }
+      const l = document.createElement("span"); l.className = "ltr"; l.dataset.c = ch;
+      const inner = document.createElement("span"); inner.textContent = ch; l.appendChild(inner);
+      el.appendChild(l); spans.push(l);
+    }
+    if (post) el.appendChild(punct(post));
+    const bar = document.createElement("span"); bar.className = "hold-bar"; el.appendChild(bar);
+    const st = { el, spans, word: letters, units: splitUnits(letters), idx: -1 };
+    wordStates.push(st); attach(st); card.appendChild(el);
+  });
+  document.querySelectorAll("#sentenceList li").forEach(li => li.classList.toggle("sel", +li.dataset.i === current));
+  store.set("current", current);
+}
+function punct(t){ const p = document.createElement("span"); p.className = "punct"; p.textContent = t; return p; }
+function escapeHtml(t){ return t.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function paintLetters(st){
+  st.spans.forEach(sp => sp.classList.remove("on","cur"));
+  if (st.idx < 0) return;
+  const unit = st.units[st.idx];
+  for (let k = unit.start; k < unit.start + unit.len; k++) st.spans[k].classList.add("on","cur");
+}
+function clearSpeaking(){ document.querySelectorAll(".word.speaking").forEach(w => w.classList.remove("speaking")); document.querySelectorAll(".ltr.on").forEach(l => l.classList.remove("on","cur")); }
+
+/* ---------------- Touch: tap vs hold ---------------- */
+let unlocked = false;
+function unlockSpeech(){ // iOS needs a first utterance inside a real touch
+  if (unlocked || !synth) return; unlocked = true;
+  const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u);
+}
+
+function attach(st){
+  let timer = null, held = false, startX = 0, startY = 0, active = false;
+  const el = st.el;
+  el.addEventListener("contextmenu", e => e.preventDefault());
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    unlockSpeech();
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    active = true; held = false; startX = e.clientX; startY = e.clientY;
+    el.classList.remove("holding"); void el.offsetWidth; el.classList.add("holding");
+    el.querySelector(".hold-bar").style.transitionDuration = settings.holdMs + "ms";
+    timer = setTimeout(() => {
+      held = true; el.classList.remove("holding");
+      readWord(st);
+    }, settings.holdMs);
+  });
+  el.addEventListener("pointermove", e => {
+    if (!active) return;
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > 30){ cancel(); }
+  });
+  const cancel = () => { active = false; clearTimeout(timer); el.classList.remove("holding"); };
+  el.addEventListener("pointercancel", cancel);
+  el.addEventListener("pointerup", e => {
+    if (!active) return;
+    active = false; clearTimeout(timer); el.classList.remove("holding");
+    if (!held) tapLetter(st);
+  });
+}
+
+function readWord(st){
+  clearSpeaking();
+  st.idx = -1; paintLetters(st);
+  st.el.classList.add("speaking");
+  speak(st.word, () => st.el.classList.remove("speaking"));
+}
+
+function tapLetter(st){
+  clearSpeaking();
+  st.idx = st.idx + 1 >= st.units.length ? 0 : st.idx + 1;
+  paintLetters(st);
+  const myIdx = st.idx;
+  speak(unitSpeech(st.word, st.units[st.idx]), () => {
+    if (st.idx === myIdx) st.spans.forEach(sp => sp.classList.remove("on","cur"));
+  });
+}
+
+/* ---------------- Sentence controls ---------------- */
+function step(d){
+  const vis = visible(); if (!vis.length) return;
+  let p = vis.indexOf(current); p = (p + d + vis.length) % vis.length;
+  current = vis[p]; render();
+}
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("resetWords").onclick = () => { if (synth) synth.cancel(); clearSpeaking(); wordStates.forEach(s => { s.idx = -1; paintLetters(s); }); };
+document.getElementById("readAll").onclick = () => {
+  unlockSpeech();
+  const s = sentences[current]; if (!s) return;
+  wordStates.forEach(st => { st.idx = -1; paintLetters(st); });
+  clearSpeaking(); wordStates.forEach(st => st.el.classList.add("speaking"));
+  speak(s.text, clearSpeaking);
+};
+document.addEventListener("keydown", e => {
+  if (drawer.classList.contains("open") || /input|textarea|select/i.test(e.target.tagName)) return;
+  if (e.key === "ArrowRight") step(1);
+  if (e.key === "ArrowLeft") step(-1);
+});
+
+/* ---------------- Drawer ---------------- */
+const drawer = document.getElementById("drawer"), scrim = document.getElementById("scrim");
+const openD = () => { drawer.classList.add("open"); scrim.classList.add("open"); buildLists(); };
+const closeD = () => { drawer.classList.remove("open"); scrim.classList.remove("open"); };
+document.getElementById("openDrawer").onclick = openD;
+document.getElementById("closeDrawer").onclick = closeD;
+scrim.onclick = closeD;
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === t));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + t.dataset.tab));
+});
+
+function buildLists(){
+  sentences = allSentences();
+  const cats = ["All", ...new Set(sentences.map(s => s.cat))];
+  if (!cats.includes(filterCat)) filterCat = "All";
+  const f = document.getElementById("filter");
+  f.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}${c==="All" ? ` (${sentences.length})` : ""}</option>`).join("");
+  f.value = filterCat;
+
+  const list = document.getElementById("sentenceList"); list.innerHTML = "";
+  let lastCat = null, n = 0;
+  sentences.forEach((s, i) => {
+    if (filterCat !== "All" && s.cat !== filterCat) return;
+    n++;
+    if (filterCat === "All" && s.cat !== lastCat){
+      const h = document.createElement("li"); h.className = "group-h"; h.style.cssText = "background:none;cursor:default;padding:6px 2px 0;border:none";
+      h.textContent = s.cat; list.appendChild(h); lastCat = s.cat;
+    }
+    const li = document.createElement("li"); li.dataset.i = i; if (i === current) li.classList.add("sel");
+    li.innerHTML = `<span class="num">${i+1}</span><span class="txt">${escapeHtml(s.text)}</span>`;
+    li.onclick = () => { current = i; render(); closeD(); };
+    list.appendChild(li);
+  });
+
+  const cl = document.getElementById("customList"); cl.innerHTML = "";
+  document.getElementById("noCustom").style.display = custom.length ? "none" : "block";
+  custom.forEach((c, ci) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="txt">${escapeHtml(c.text)}</span><span class="tag">${escapeHtml(c.cat || "My Sentences")}</span><button class="del" title="Delete">🗑</button>`;
+    li.querySelector(".txt").onclick = () => { filterCat = "All"; store.set("filter", filterCat); current = sentences.findIndex(s => s.custom && s.ci === ci); render(); closeD(); };
+    li.querySelector(".del").onclick = e => {
+      e.stopPropagation();
+      if (!confirm(`Delete "${c.text}"?`)) return;
+      const wasCurrent = sentences[current] && sentences[current].custom && sentences[current].ci === ci;
+      custom.splice(ci, 1); store.set("custom", custom);
+      sentences = allSentences(); if (wasCurrent || current >= sentences.length) current = 0;
+      buildLists(); render();
+    };
+    cl.appendChild(li);
+  });
+}
+document.getElementById("filter").onchange = e => {
+  filterCat = e.target.value; store.set("filter", filterCat);
+  const vis = visible(); if (!vis.includes(current)) current = vis[0] ?? 0;
+  buildLists(); render();
+};
+
+document.getElementById("addBtn").onclick = () => {
+  const ta = document.getElementById("newText");
+  const cat = document.getElementById("newCat").value.trim() || "My Sentences";
+  const lines = ta.value.split(/\n+/).map(l => l.trim().replace(/\s+/g, " ")).filter(Boolean);
+  const msg = document.getElementById("addMsg");
+  if (!lines.length){ msg.style.color = "#c55"; msg.textContent = "Type a sentence first."; return; }
+  lines.forEach(t => custom.push({text: t, cat}));
+  store.set("custom", custom);
+  ta.value = "";
+  msg.style.color = ""; msg.textContent = `Added ${lines.length} sentence${lines.length > 1 ? "s" : ""}.`;
+  setTimeout(() => msg.textContent = "", 2500);
+  sentences = allSentences();
+  filterCat = "All"; store.set("filter", filterCat);
+  current = sentences.length - lines.length; // jump to the first new one
+  buildLists(); render();
+};
+
+/* ---------------- Settings ---------------- */
+function saveSettings(){ store.set("settings2", settings); }
+document.querySelectorAll('input[name=lmode]').forEach(r => {
+  r.checked = r.value === settings.lmode;
+  r.onchange = () => { settings.lmode = r.value; saveSettings(); };
+});
+const teams = document.getElementById("teams");
+teams.checked = settings.teams;
+teams.onchange = () => { settings.teams = teams.checked; saveSettings(); render(); };
+const rate = document.getElementById("rate"), rateVal = document.getElementById("rateVal");
+rate.value = settings.rate; rateVal.textContent = "(" + settings.rate + "×)";
+rate.oninput = () => { settings.rate = +rate.value; rateVal.textContent = "(" + settings.rate + "×)"; saveSettings(); };
+const hold = document.getElementById("holdMs"), holdVal = document.getElementById("holdVal");
+hold.value = settings.holdMs; holdVal.textContent = "(" + (settings.holdMs/1000) + " s)";
+hold.oninput = () => { settings.holdMs = +hold.value; holdVal.textContent = "(" + (settings.holdMs/1000) + " s)"; saveSettings(); };
+document.getElementById("voice").onchange = e => { settings.voice = e.target.value; saveSettings(); };
+document.getElementById("testVoice").onclick = () => { unlockSpeech(); speak("The cat sat on the hat."); };
+
+render();
+</script>
+</body>
+</html>
