@@ -345,29 +345,65 @@ let voices = [];
 let speakToken = 0;
 if (!synth) document.getElementById("noSpeech").style.display = "block";
 
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function showSpeechProblem(msg){
+  const w = document.getElementById("noSpeech");
+  w.textContent = msg; w.style.display = msg ? "block" : "none";
+}
 function loadVoices(){
   if (!synth) return;
   voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
   const sel = document.getElementById("voice");
-  sel.innerHTML = '<option value="">Default</option>' + voices.map(v=>`<option value="${v.name}">${v.name} (${v.lang})</option>`).join("");
-  sel.value = settings.voice;
+  sel.innerHTML = '<option value="">Automatic</option>' + voices.map(v =>
+    `<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)} (${v.lang})${v.localService ? "" : " – online"}</option>`).join("");
+  sel.value = voices.some(v => v.name === settings.voice) ? settings.voice : "";
 }
 if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
 
+// Pick a voice: the one chosen in Settings, otherwise an on-device US English voice.
+// (Chrome's default "Google" online voices often stay silent on local files and some networks.)
+function pickVoice(){
+  if (!voices.length) voices = synth.getVoices().filter(v => /^en/i.test(v.lang));
+  const chosen = voices.find(v => v.name === settings.voice);
+  if (chosen) return chosen;
+  const local = voices.filter(v => v.localService);
+  return local.find(v => v.lang === "en-US" && v.default) || local.find(v => v.lang === "en-US")
+      || local.find(v => /^en/i.test(v.lang)) || voices.find(v => v.lang === "en-US") || voices[0] || null;
+}
+
 function speak(text, onEnd){
   const myToken = ++speakToken;
-  let done = false;
+  let done = false, started = false;
   const finish = () => { if (done) return; done = true; clearTimeout(fallback); onEnd && onEnd(); };
   // safety net in case the browser never fires onend
   const fallback = setTimeout(finish, 900 + text.length * 120 / settings.rate);
   if (!synth){ return; }
-  synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate = settings.rate; u.lang = "en-US";
-  const v = voices.find(v => v.name === settings.voice); if (v) u.voice = v;
-  u.onend = finish; u.onerror = finish; window.__rbUtterance = u;
-  // small delay avoids a Chrome bug where speak() right after cancel() is dropped
-  setTimeout(() => { if (myToken === speakToken) synth.speak(u); else finish(); }, 30);
+  const v = pickVoice(); if (v){ u.voice = v; u.lang = v.lang; }
+  u.onstart = () => { started = true; showSpeechProblem(""); };
+  u.onend = finish;
+  u.onerror = e => {
+    if (e.error !== "interrupted" && e.error !== "canceled")
+      showSpeechProblem(`The voice couldn't play (${e.error}). Try picking another voice under Grown-ups → Settings, and check the tab isn't muted.`);
+    finish();
+  };
+  window.__rbUtterance = u; // keep a reference so Chrome fires onend
+  const go = () => {
+    if (myToken !== speakToken){ finish(); return; }
+    synth.resume(); // Chrome can get stuck "paused"
+    synth.speak(u);
+    setTimeout(() => {
+      if (!started && !done && myToken === speakToken && !synth.speaking)
+        showSpeechProblem("No voice is playing. Check your volume and that this tab isn't muted, or pick a different voice under Grown-ups → Settings.");
+    }, 2500);
+  };
+  if (synth.speaking || synth.pending){
+    synth.cancel();
+    setTimeout(go, 120); // speak() right after cancel() is sometimes dropped in Chrome
+  } else {
+    go();
+  }
   return finish;
 }
 
@@ -473,8 +509,8 @@ function clearSpeaking(){ document.querySelectorAll(".word.speaking").forEach(w 
 
 /* ---------------- Touch: tap vs hold ---------------- */
 let unlocked = false;
-function unlockSpeech(){ // iOS needs a first utterance inside a real touch
-  if (unlocked || !synth) return; unlocked = true;
+function unlockSpeech(){ // iOS needs a first utterance inside a real touch (only iOS: it can jam Chrome)
+  if (unlocked || !synth || !isIOS) return; unlocked = true;
   const u = new SpeechSynthesisUtterance(" "); u.volume = 0; synth.speak(u);
 }
 
